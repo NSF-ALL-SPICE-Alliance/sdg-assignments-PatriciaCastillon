@@ -131,6 +131,12 @@ Cool! It seems that the darkest blue points (countries with the lowest SDG 5 sco
 #### <span style="color: red;">Challenge 1</span>
 Create a scatterplot using two different SDG scores. Then, color the points by using a third SDG score. In a couple of sentences, describe what you see.
 
+```{r}
+ggplot(data = sdr_data, aes(x= goal_2_score, y = goal_6_score, color = goal_7_score)) +
+  geom_point()
+```
+Interpretation: 
+
 ### Bar Chart
 
 When should we use a **bar chart**?
@@ -189,6 +195,16 @@ As we can see in the Oceania region, most Countries do not have the necessary da
 
 #### <span style="color: red;">Challenge 2</span>
 Create a new bar chart with countries only from the MENA region. 
+```{r}
+MENA_sdr_data <- sdr_data %>% 
+  filter(regions_used_for_the_sdr == "MENA") # filtering for LAC countries only
+```
+```{r}
+ggplot(MENA_sdr_data, aes(x= goal_3_score, y = country)) +
+  geom_bar(stat = "identity") 
+```
+
+
 
 ### Histogram
 
@@ -224,3 +240,12 @@ Countries that fall in the higher end of the Goal 4 spectrum belong to the OECD 
 
 #### <span style="color: red;">Challenge 3</span>
 Make a histogram for a different SDG score. Then, fill by region. In a couple of sentences, describe any interesting trends or what you notice from your new histogram.
+
+```{r}
+ggplot(sdr_data, aes(x = goal_11_score, fill=regions_used_for_the_sdr)) + 
+  geom_histogram(bins=33, color="black")
+```
+
+The histogram shows that most countries fall between 75-90 in the SDG 11 Score range. Another trend shows that countries in the Sub-Saharan Africa fall lower for SDG 11. On the other hand, E. Europe and C. Asia countries have a higher count of countries, while the OECD countries have higher scores for SDG 11.
+
+ 
