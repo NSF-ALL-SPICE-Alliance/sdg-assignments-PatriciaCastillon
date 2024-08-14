@@ -31,6 +31,9 @@ library(ggcorrplot)
 library(vembedr)
 ```
 
+```{r}
+library(plotly)
+```
 
 ```{r, echo=FALSE}
 embed_url("https://www.youtube.com/watch?v=Gzgj73UQ__A")
@@ -197,13 +200,14 @@ To circle back and reinforce how the linear regression (line drawn through our s
   - What does this look like on scatter plot?
   
 ```{r, warning=FALSE, message=FALSE}
-ggplot(sdr_data, aes(x = goal_12_score, 
-                     y = goal_9_score)) +
+goal_8_7_linear <- ggplot(sdr_data, aes(x = goal_8_score, 
+                     y = goal_7_score, label = country)) +
   geom_point() +
   geom_smooth() +
   stat_cor() +
   theme_minimal() 
 
+ggplotly(goal_8_7_linear)
 ```
 
 ### <span style="color: red;">Challenge 1</span>
@@ -216,7 +220,16 @@ ggplot(sdr_data, aes(x = goal_12_score,
      - **Hint** to use the ggplotly() function, you will need to use `library()` to load in the plotly package in the first code chunk in this R Markdown
 
   - in 4-6 sentences, come up with a hypotheses for the positive or negative correlation between the 2 goals
+  
+   HYPOTHESIS: The plot above shows that there is a positive correlation between SDG 7 and SDG 8. With SDG 7 being affordable and clean energy and SDG 8 being decent work and economic growth, the positive correlation could be attributed to the fact that affordable and clean energy allows better productivity and industrial support for companies. For example, improved clean energy systems for corporate infrastructure and transportation allows systems among multiple communities to be more sustainable. Another reason could be that a growing industry for clean energy creates more jobs for citizens. 
       
       - are there any points that don't follow the trend (outliers)
+- Yes, most outliers lie within Africa.
         
         - which country(s) are outliers?
+- Some outliers include Iceland, Benin, Guinea, Senegal, Albania, and Gabon.
+        
+
+        
+        
+    
