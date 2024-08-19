@@ -93,7 +93,7 @@ How  many cells do we have in the dataframe: sdr_data_normalized_scores?
 
 206 rows by 99 columns
 
-```{r}
+```{r} 
 206 * 99
 ```
 
@@ -217,7 +217,7 @@ fviz_nbclust(sdr_data_imputed, kmeans, method = "silhouette")
 The kmeans() function clusters countries into groups (int this case 2, visualized above) based on 84 SDG scores
 
 ```{r}
-k2 <- kmeans(sdr_data_imputed, centers = 2)
+k2 <- kmeans(sdr_data_imputed, centers = 4)
 ```
 
 
@@ -230,6 +230,7 @@ fviz_cluster(k2, data = sdr_data_imputed) +
 
 You can view the countries and their assigned cluster in a dataframe with the code below
 
+HYPOTHESIS: Countries in Europe and Africa lean farther away from each other, resulting in very opposite clusters. This may be due to the fact that more SDG's have been accomplished in European countries.
 
 ```{r}
 country_clusters <- as.data.frame(k2$cluster)
@@ -246,7 +247,7 @@ To answer this question, we train a random forest model to make predictions of m
 
 
 ```{r}
-rf_matmort <- randomForest(normalized_score_sdg3_matmort ~ .,
+rf_sanita <- randomForest(normalized_score_sdg6_sanita ~ .,
                              data = sdr_data_imputed,
                              importance = TRUE)
 ```
@@ -257,14 +258,14 @@ The "% Var explained" value of 80.83 indicates that approximately 80.83% of the 
 
 
 ```{r}
-rf_matmort
+rf_sanita
 ```
 
 Now we can look at the variables most important in making the predictions
 
 
 ```{r}
-importance_df <- as.data.frame(rf_matmort$importance)
+importance_df <- as.data.frame(rf_sanita$importance)
 ```
 
 Let's take the top 10 and graph them
@@ -279,7 +280,7 @@ importance_df_top_10 <- importance_df %>%
 ggplot(importance_df_top_10, aes(x = `%IncMSE`, y = reorder(variable, `%IncMSE`))) +
   geom_bar(stat = "identity", fill = "steelblue", color = "black") +
   theme_minimal() +
-  labs(title = "Most Important Variables in Predicting Maternal Mortality",
+  labs(title = "Most Important Variables in Ensuring Access to Water and Sanitation",
        subtitle = "Top 10",
        y = "SDG Indicator",
        x = "Feature Importance (% Increase in Mean Squared Error)")
@@ -296,7 +297,7 @@ Lastly, we want to know how these important variables influence the prediction: 
 
 
 ```{r}
-pdp::partial(rf_matmort, pred.var = "normalized_score_sdg6_sanita", plot = TRUE)
+pdp::partial(rf_sanita, pred.var = "normalized_score_sdg6_water", plot = TRUE)
 ```
 
 
@@ -315,7 +316,7 @@ Now that we saw how one variable influences the models prediction, how about 2 v
 
 
 ```{r}
-pd <- pdp::partial(rf_matmort, pred.var = c("normalized_score_sdg6_sanita", "normalized_score_sdg3_u5mort"))
+pd <- pdp::partial(rf_sanita, pred.var = c("normalized_score_sdg6_water", "normalized_score_sdg7_elecac"))
 # Default PDP
 plotPartial(pd)
 ```
@@ -334,6 +335,7 @@ plotPartial(pd)
 Edit this code chunk `k2 <- kmeans(sdr_data_imputed, centers = 2)` under the silhouette plot to increase the number of clusters
 
 - Then, run the code chunk `fviz_cluster(k2, data = sdr_data_imputed) + theme_minimal()` to see the new visualization with the increased number of clusters
+
   
 #### <span style="color: red;">Challenge 2</span>
 
