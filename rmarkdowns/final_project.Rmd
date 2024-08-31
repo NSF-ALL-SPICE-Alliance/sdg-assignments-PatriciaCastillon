@@ -1,0 +1,313 @@
+---
+title: "Achieving Sustainable Consumption and Production Patterns Around the World "
+author: "Patricia Ann Castillon"
+date: "2024-08-21"
+output: html_document
+---
+
+- This project focuses on SDG 12: **Ensure sustainable consumption and production patterns** and is based on the [2023 SDG Data Report](https://sdgs.un.org/goals).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(janitor)
+library(leaflet)
+library(plotly)
+library(rnaturalearth)
+library(sf)
+library(naniar)
+library(cluster) 
+library(randomForest) # runs random forest algorithm
+library(missRanger) # imputes data through with random forest method
+library(factoextra) # visualizes clusters
+library(pdp)
+library(vembedr)
+```
+
+
+```{r, include=FALSE}
+sdr_data <- read_csv(here("data/SDR-2023-Data.csv"))
+```
+
+```{r, include=FALSE}
+sdr_data_sids <- read_csv(here("data/SDR-for-SIDS/SIDS-SDR-2023-data.csv"))
+
+```
+
+```{r, include=FALSE}
+sdr_data_sids <- sdr_data_sids %>%
+  clean_names()
+```
+```{r, include=FALSE}
+sdr_data <- sdr_data %>%
+  clean_names()
+```
+
+To start off, the histogram below illustrates the distribution of SDG 12 scores across different regions. 
+
+```{r}
+
+goal_12_histogram <- ggplot(sdr_data, aes(x = goal_12_score, fill=regions_used_for_the_sdr)) +
+  geom_histogram() +
+  theme_minimal() +
+  scale_fill_viridis_d(option = "plasma") +
+  labs(title = "Distributions of SDG 12 Scores",
+       x = "SDG 12 Score",
+       y = "Number of Countries",
+       fill = "Regions")
+
+ggplotly(goal_12_histogram)
+```
+
+## Description:
+The histogram illustrates the distribution of SDG 12 scores across different regions, with the x-axis representing the SDG 12 scores and the y-axis indicating the number of countries within each score range. Each color on the histogram denotes a different region.
+
+## Key Observations:
+  - **Sub-Saharan Africa** stands out with the highest scores, as evidenced by two countries nearing a 99% SDG 12 score.
+  - **OECD** countries generally exhibit lower scores, falling within the range of 40% to 80%.
+  - **Europe and Asia** show a more balanced distribution of scores, with the majority clustered between 65% and 90%.
+  - **LAC and MENA** also show a balanced distribution, with countries within the range of 52% to 94%. 
+  - **Oceania** features a limited number of countries, with scores of 84% and 97% for the two countries represented.
+  - This histogram effectively highlights regional variations in SDG 12 scores, emphasizing the disparities and distribution patterns across different geographic areas.
+
+
+Let's look into regions further through a map.
+
+```{r, include=FALSE}
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+```
+```{r, include=FALSE}
+world <- world %>% 
+  select(name_long, iso_a3, geometry)
+```
+
+```{r, include=FALSE}
+colnames(sdr_data)[which(colnames(sdr_data) == "country_code_iso3")] <- "iso_a3"
+
+```
+```{r, include=FALSE}
+sdr_data_world_joined <- left_join(sdr_data, world, by = "iso_a3")
+
+```
+```{r, include=FALSE}
+class(sdr_data_world_joined)
+
+```
+
+```{r, include=FALSE}
+sdr_data_world_joined <- st_as_sf(sdr_data_world_joined)
+```
+
+```{r, include=FALSE}
+class(sdr_data_world_joined)
+```
+```{r, include=FALSE}
+sdr_data_world_joined <- st_transform(sdr_data_world_joined, "+proj=longlat +datum=WGS84")
+
+```
+
+```{r}
+mytext <- paste(
+    "Country: ", sdr_data_world_joined$country,"<br/>", 
+    "Goal 12 Score: ", round(sdr_data_world_joined$goal_12_score, 2), 
+    sep="") %>%
+  lapply(htmltools::HTML)
+
+leaflet(sdr_data_world_joined) %>% 
+  addTiles()  %>% 
+  setView( lat=10, lng=0 , zoom=2) %>%
+  addPolygons(stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5, color = ~colorQuantile("PuOr", goal_12_score)(goal_12_score), label = mytext) 
+```
+### SDG 12 Scores on the Map (Global Distribution):
+
+
+- Color indication for SDG 12 Scores
+
+  - Purple: High
+  - Orange: Low
+(Hover over countries to reveal specific scores)
+
+I chose to visualize the data this way because it is easier to have an overall view of how each region is doing. From here, we can zoom into the scores for specific countries.
+
+### Observations:
+
+  - Many African and Asian countries have high SDG 12 scores (darker purple), such as Mozambique and Tanzania. This may be due to factors such as lower usage of conventional vehicles such as trains, cars, and other vehicles that run on fossil fuels. Another reason may be that certain countries have a more proper waste management/disposal.
+  
+  - On the other hand, countries like the United States, Spain, and Canada have lower scores. Their scores ranging from 50% to 70%. This indicates a potential need for greater changes in their consumption policies and regulations, as well as a reduction in their material footprint. 
+ 
+
+
+Let's dig deeper and look into a specific indicator under SDG 12.
+
+
+```{r}
+sdr_data_normalized_scores <- sdr_data %>% 
+  select(country, contains("normalized_score"))
+```
+
+
+```{r}
+sdr_data_normalized_scores_longer <- sdr_data_normalized_scores %>% 
+  pivot_longer(cols = !country)
+```
+
+```{r}
+missing_data_by_country <- sdr_data_normalized_scores_longer %>%
+ group_by(country) %>%
+ miss_var_summary() %>% 
+ arrange(desc(pct_miss))
+
+missing_data_by_country
+```
+
+```{r}
+completely_na_countries  <- missing_data_by_country$country[missing_data_by_country$pct_miss == 100]
+completely_na_countries
+
+```
+
+```{r}
+sdr_data_normalized_scores_no_na_countries <- sdr_data_normalized_scores %>% 
+  filter(!country %in% completely_na_countries)
+```
+
+
+
+```{r}
+sdr_data_normalized_scores_less_na <- sdr_data_normalized_scores_no_na_countries %>%
+  select(where(~ sum(is.na(.))/length(.) <= 0.2))
+```
+
+```{r message=FALSE, results='hide'}
+sdr_data_imputed <- missRanger(sdr_data_normalized_scores_less_na)
+```
+
+```{r}
+sdr_data_imputed <- sdr_data_imputed %>%
+  remove_rownames %>%
+  column_to_rownames(var="country")
+```
+
+
+```{r, include=FALSE}
+fviz_nbclust(sdr_data_imputed, kmeans, method = "silhouette")
+
+```
+```{r, include=FALSE}
+k2 <- kmeans(sdr_data_imputed, centers = 2)
+
+```
+
+```{r, include=FALSE}
+fviz_cluster(k2, data = sdr_data_imputed) +
+  theme_minimal()
+```
+```{r, include=FALSE}
+country_clusters <- as.data.frame(k2$cluster)
+
+```
+
+```{r, include=FALSE}
+selected_countries <- subset(country_clusters, k2$cluster == 2)
+```
+
+
+
+```{r}
+bottom_15_countries <- sdr_data_normalized_scores_no_na_countries %>%
+  arrange(normalized_score_sdg12_ewaste) %>%
+  slice(1:15)
+```
+
+## SDG 12: Electronic Waste Management
+
+```{r}
+bottom_bar <- ggplot(bottom_15_countries, aes(x = reorder(country, normalized_score_sdg12_ewaste), y = normalized_score_sdg12_ewaste)) + 
+  theme_minimal() +
+  geom_col(fill = "#800080") + 
+  labs(title = "15 Lowest-Ranked Countries in SDG 12: E-Waste Management", x = "Country", y = "E-waste Management Score") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplotly(bottom_bar)
+```
+### E-waste Management in the Bottom 15 Countries
+
+- The visualization above highlights the 15 countries with the lowest scores in E-waste management, a key aspect of Sustainable Development Goal (SDG) 12. These countries struggle with effective E-waste management due to factors such as:
+
+- Lack of regulations for garbage disposal
+- Mass production of electronics, leading to rapid disposal of older devices
+
+The electronic waste is estimated based on figures for domestic production, imports and exports of electronic products, as well as product lifespan data. [More info](https://files.unsdsn.org/sustainable-development-report-2023.pdf)
+Notably, many of the countries in the bottom 15 are known for their urban areas, which may contribute to the generation of electrical waste.
+
+
+
+### Key Observations
+
+- All 15 countries have scores **below 16**, indicating poor E-waste management.
+- **Norway** and the **United Kingdom** have scores of 0, while Switzerland scores only slightly higher at 0.382.
+- Many **European countries** with developed and busy cities, such as those mentioned above, feature prominently in the bottom 15.
+- The **United States** has a relatively low score of 10.764.
+- **Japan**, a developed country renowned for manufacturing electronics, scores low at 13.48. This contributes to its overall low score for SDG 12, which stands at around 66%.
+
+These observations highlight the need for improved E-waste management practices in these countries to achieve the goals of SDG 12.
+
+
+
+
+
+
+
+
+
+
+## Variables that Predict Electronic Waste Management Scores
+
+What other factors can be addressed to enhance electronic waste management capabilities?
+
+Let's look at some of the most important variables in predicting E-waste management scores.
+
+```{r}
+rf_ewaste <- randomForest(normalized_score_sdg12_ewaste ~ .,
+                             data = sdr_data_imputed,
+                             importance = TRUE)
+```
+
+
+```{r}
+rf_ewaste
+```
+
+```{r}
+importance_df <- as.data.frame(rf_ewaste$importance)
+```
+
+```{r}
+importance_df_top_10 <- importance_df %>%
+  rownames_to_column(var = "variable") %>%
+  slice_max(n = 10, order_by = `%IncMSE`)
+```
+
+
+```{r}
+ggplot(importance_df_top_10, aes(x = `%IncMSE`, y = reorder(variable, `%IncMSE`))) +
+  geom_bar(stat = "identity", fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Most Important Variables in Predicting Electronic Waste",
+       subtitle = "Top 10",
+       y = "SDG Indicator",
+       x = "Feature Importance (% Increase in Mean Squared Error)")
+```
+
+
+- The chart above shows the top 10 indicators and their importance in predicting electronic waste. We can see that the top indicator that leads with the most effect is the SDG 13: **CO₂ emissions embodied in imports** indicator. 
+
+### Discussion
+- This makes a lot of sense because a big part of sustainable consumption is lowering total greenhouse emissions or leaving a smaller carbon footprint. With CO₂ imports being the number one indicator, this tells us that countries we've discussed in the previous visualization and the imports they rely on, have a great effect on how sustainable their consumption patterns are. 
+- These countries may have a lot of goods coming in that require a lot fuel to be manufactured. For example, if a country imports steel from another nation, the CO₂ emissions from the steel production process in the exporting country are part of the embodied emissions.
+
+By understanding and addressing the carbon footprint of imported goods, especially in the context of electronics, countries can make more informed decisions to improve their overall sustainability and develop better e-waste management strategies. This allows them to move forward towards taking climate action.
+
+
